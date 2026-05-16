@@ -32,6 +32,14 @@ create trigger campaigns_set_updated_at
   before update on public.campaigns
   for each row execute function public.set_updated_at();
 
+-- Grants
+-- RLS gates which ROWS the role can touch; GRANT gates whether the role can
+-- touch the TABLE at all. Supabase projects normally auto-grant to the
+-- authenticated/anon roles, but on projects where that default is missing
+-- we'd otherwise see "permission denied for table campaigns" (code 42501).
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.campaigns to authenticated;
+
 -- Row Level Security
 alter table public.campaigns enable row level security;
 
