@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { StudioWorkspace } from "@/components/studio/StudioWorkspace";
+import { getCampaignArtifacts } from "@/lib/actions/campaignArtifacts";
 import { getCampaign, refreshCampaignUrls } from "@/lib/actions/studio";
 import { getCampaignVideos } from "@/lib/actions/video";
 
@@ -25,6 +26,14 @@ export default async function StudioEditPage({
     ? await getCampaignVideos(campaign.id)
     : [];
 
+  const posters = campaign.result_image_url
+    ? await getCampaignArtifacts(campaign.id, ["poster"])
+    : [];
+
+  const models3d = campaign.result_image_url
+    ? await getCampaignArtifacts(campaign.id, ["model_3d"])
+    : [];
+
   return (
     <div className="space-y-8">
       <div className="space-y-2">
@@ -44,7 +53,12 @@ export default async function StudioEditPage({
         </p>
       </div>
 
-      <StudioWorkspace initialCampaign={campaign} initialVideos={videos} />
+      <StudioWorkspace
+        initialCampaign={campaign}
+        initialVideos={videos}
+        initialPosters={posters}
+        initialModels3d={models3d}
+      />
     </div>
   );
 }

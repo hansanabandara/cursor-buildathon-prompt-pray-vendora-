@@ -107,11 +107,13 @@ export function composePrompt(input: PromptInputs): string {
       ? (input.customCameraAngle?.trim() ?? "")
       : CAMERA_ANGLE_PROMPTS[input.cameraAngle];
 
+  // Product name from the form is metadata for the user's records only —
+  // never ask the model to draw it on the canvas (that reliably creates
+  // fake overlays). When cleaning text, derive what to keep from the source image.
   const textCleanupInstruction = input.removeOtherText
-    ? `Keep the product name "${input.productName}" exactly as it appears on the product (preserve its lettering, typography and placement), ` +
-      "but remove every other piece of text, watermark, sticker, price tag, " +
-      "barcode, packaging copy, slogan or extraneous lettering visible " +
-      "anywhere in the image so that the product name is the only readable text in the final result."
+    ? "Preserve typography that is genuinely printed or embossed on the product or its primary packaging exactly as shown in the source image — do not redraw it as floating overlay text — " +
+      "but strip every watermark, unrelated sticker, price tag, barcode, secondary packaging copy or extraneous lettering. " +
+      "Do not add titles, captions, slogans or any new typography that isn't already part of that physical product labeling."
     : null;
 
   // Aspect ratio fallback: many image-to-image models preserve the source
@@ -127,7 +129,7 @@ export function composePrompt(input: PromptInputs): string {
     : null;
 
   const parts = [
-    `Studio-grade e-commerce product image of "${input.productName}".`,
+    "Studio-grade marketing photograph of the product shown in the reference image.",
     styleText,
     backgroundText,
     cameraText,

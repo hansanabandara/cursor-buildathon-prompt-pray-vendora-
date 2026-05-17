@@ -277,7 +277,7 @@ export async function generateCampaignVideo(
   };
 
   console.log(
-    "[video] calling fal.stream workflows/udithnethminaedu/video-and-text",
+    "[video] calling fal.stream workflows/hansanabadara/video-and-text",
     {
       campaignId: input.campaignId,
       mode: input.mode,
@@ -309,7 +309,7 @@ export async function generateCampaignVideo(
 
   try {
     const stream = await fal.stream(
-      "workflows/udithnethminaedu/video-and-text",
+      "workflows/hansanabadara/video-and-text",
       { input: falInput }
     );
 

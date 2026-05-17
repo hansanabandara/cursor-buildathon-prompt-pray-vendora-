@@ -101,9 +101,9 @@ const renameSchema = z.object({
 });
 
 /**
- * Rename a campaign. Updates both `name` (dashboard display) and
- * `product_name` (used in prompt composition) so the next regeneration
- * picks up the new product naming as well.
+ * Rename a campaign. Keeps `name` and `product_name` aligned for dashboard /
+ * listings and downstream video workflows; image refinement ignores the typed
+ * name so it isn't painted onto the refined photo.
  */
 export async function renameCampaign(
   _prev: MutationState,

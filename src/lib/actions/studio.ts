@@ -354,7 +354,7 @@ export async function generateCampaign(
   };
 
   console.log(
-    "[studio] calling fal.stream workflows/udithnethminaedu/image-refine",
+    "[studio] calling fal.stream workflows/hansanabadara/image-refine",
     {
       promptPreview:
         prompt.slice(0, 120) + (prompt.length > 120 ? "..." : ""),
@@ -367,7 +367,7 @@ export async function generateCampaign(
   try {
     const fal = getFal();
     const stream = await fal.stream(
-      "workflows/udithnethminaedu/image-refine",
+      "workflows/hansanabadara/image-refine",
       { input: falInput }
     );
 

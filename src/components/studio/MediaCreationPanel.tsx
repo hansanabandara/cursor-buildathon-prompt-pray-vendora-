@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Box, Film, ImageIcon, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
+import { PosterForm } from "@/components/studio/PosterForm";
+import { Dress3Form } from "@/components/studio/Dress3Form";
 import { VideoForm } from "@/components/studio/VideoForm";
+import {
+  fetchPosterAndModelArtifacts,
+  type CampaignArtifactRow,
+} from "@/lib/actions/campaignArtifacts";
 import {
   MEDIA_MODES,
   MEDIA_MODE_LABELS,
@@ -14,7 +20,11 @@ import type { CampaignVideo } from "@/lib/actions/video";
 
 type Props = {
   campaignId: string;
+  /** Refined hero frame — shown beside optional Dress-3D upload */
+  heroImageUrl: string | null;
   videos: CampaignVideo[];
+  posters: CampaignArtifactRow[];
+  models3d: CampaignArtifactRow[];
 };
 
 const ICONS: Record<MediaMode, React.ComponentType<{ className?: string }>> = {
@@ -23,9 +33,67 @@ const ICONS: Record<MediaMode, React.ComponentType<{ className?: string }>> = {
   video: Film,
 };
 
-export function MediaCreationPanel({ campaignId, videos }: Props) {
+export function MediaCreationPanel({
+  campaignId,
+  heroImageUrl,
+  videos,
+  posters,
+  models3d,
+}: Props) {
   const [mode, setMode] = useState<MediaMode>("video");
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+
+  const [posterRows, setPosterRows] = useState(posters);
+  const [modelsRows, setModelsRows] = useState(models3d);
+
+  const posterStamp =
+    posters.length === 0
+      ? "0"
+      : posters.map((p) => `${p.id}:${p.url}`).join("|");
+
+  const modelStamp =
+    models3d.length === 0
+      ? "0"
+      : models3d.map((p) => `${p.id}:${p.url}`).join("|");
+
+  useEffect(() => {
+    setPosterRows(posters);
+    setModelsRows(models3d);
+    // `posterStamp` / `modelStamp` collapse the array contents into stable
+    // strings so we resync only when ids/urls actually change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, posterStamp, modelStamp]);
+
+  const refreshArtifacts = useCallback(async () => {
+    try {
+      const next = await fetchPosterAndModelArtifacts(campaignId);
+      setPosterRows(next.posters);
+      setModelsRows(next.models3d);
+    } catch {
+      /* non-fatal */
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    void refreshArtifacts();
+  }, [refreshArtifacts]);
+
   const latestVideo = videos[0] ?? null;
+  const latestPoster = posterRows[0] ?? null;
+  const latestModel = modelsRows[0] ?? null;
+
+  const activeModel =
+    modelsRows.find((m) => m.id === selectedModelId) ?? latestModel;
+  const activeModelUrl = activeModel?.url ?? null;
+
+  useEffect(() => {
+    if (!latestModel) return;
+    setSelectedModelId((prev) => {
+      if (!prev) return latestModel.id;
+      if (modelsRows.some((m) => m.id === prev)) return prev;
+      return latestModel.id;
+    });
+  }, [latestModel, modelsRows]);
 
   return (
     <section className="space-y-6 rounded-2xl glass-strong p-6 shadow-xl shadow-black/20">
@@ -38,11 +106,10 @@ export function MediaCreationPanel({ campaignId, videos }: Props) {
         </div>
         <p className="text-sm text-muted-foreground">
           The refined product image is ready. Generate marketing media from it
-          — poster artwork, an interactive 3D model, or a short video ad.
+          — posters, Dress-3D meshes, or a short video ad.
         </p>
       </div>
 
-      {/* Media-mode toggle with animated active indicator */}
       <div className="relative grid grid-cols-3 gap-1 rounded-xl border border-white/8 bg-white/3 p-1">
         {MEDIA_MODES.map((m) => {
           const Icon = ICONS[m];
@@ -57,11 +124,17 @@ export function MediaCreationPanel({ campaignId, videos }: Props) {
               {isActive ? (
                 <motion.span
                   layoutId="mode-pill"
-                  className="absolute inset-0 rounded-lg bg-white/10 border border-white/12"
+                  className="absolute inset-0 rounded-lg border border-white/12 bg-white/10"
                   transition={{ type: "spring", stiffness: 400, damping: 38 }}
                 />
               ) : null}
-              <span className={`relative z-10 flex items-center gap-2 ${isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground/70"}`}>
+              <span
+                className={`relative z-10 flex items-center gap-2 ${
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground/70"
+                }`}
+              >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {MEDIA_MODE_LABELS[m]}
               </span>
@@ -70,7 +143,6 @@ export function MediaCreationPanel({ campaignId, videos }: Props) {
         })}
       </div>
 
-      {/* Tab content with crossfade */}
       <AnimatePresence mode="wait">
         <motion.div
           key={mode}
@@ -78,55 +150,70 @@ export function MediaCreationPanel({ campaignId, videos }: Props) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
+          className="space-y-6"
         >
           {mode === "video" ? (
             <VideoForm campaignId={campaignId} latestVideo={latestVideo} />
-          ) : (
-            <ComingSoon mode={mode} />
-          )}
+          ) : null}
+          {mode === "poster" ? (
+            <PosterForm
+              campaignId={campaignId}
+              latestPoster={latestPoster}
+              onArtifactsUpdated={refreshArtifacts}
+            />
+          ) : null}
+          {mode === "3d" ? (
+            <Dress3Form
+              campaignId={campaignId}
+              heroImageUrl={heroImageUrl}
+              displayGlbUrl={activeModelUrl}
+              onArtifactsUpdated={refreshArtifacts}
+            />
+          ) : null}
         </motion.div>
       </AnimatePresence>
 
-      {/* Previous videos gallery */}
       {mode === "video" && videos.length > 0 ? (
         <VideoGallery videos={videos} />
       ) : null}
+      {mode === "poster" && posterRows.length > 0 ? (
+        <ArtifactStrip
+          title="Previous posters"
+          items={posterRows}
+          renderPreview={(row) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={row.url}
+              alt="Poster"
+              className="h-full w-full object-cover"
+            />
+          )}
+        />
+      ) : null}
+      {mode === "3d" && modelsRows.length > 0 ? (
+        <ModelGallery
+          items={modelsRows}
+          selectedId={selectedModelId}
+          onSelect={setSelectedModelId}
+        />
+      ) : null}
     </section>
-  );
-}
-
-function ComingSoon({ mode }: { mode: MediaMode }) {
-  const Icon = ICONS[mode];
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-white/10 bg-white/3 p-12 text-center">
-      <div className="rounded-full border border-white/10 bg-white/5 p-4 animate-float">
-        <Icon className="h-8 w-8 text-violet-400/60" aria-hidden="true" />
-      </div>
-      <div>
-        <h3 className="text-base font-semibold text-foreground/80">
-          {MEDIA_MODE_LABELS[mode]} generation coming soon
-        </h3>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          We&apos;re wiring up the {MEDIA_MODE_LABELS[mode].toLowerCase()}{" "}
-          workflow next. Switch to <strong className="text-foreground/60">Video</strong> to create
-          marketing media from this campaign.
-        </p>
-      </div>
-    </div>
   );
 }
 
 function VideoGallery({ videos }: { videos: CampaignVideo[] }) {
   return (
     <div className="space-y-3 border-t border-white/8 pt-6">
-      <h3 className="text-sm font-semibold text-foreground/80">Previously generated videos</h3>
+      <h3 className="text-sm font-semibold text-foreground/80">
+        Previously generated videos
+      </h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {videos.map((v, i) => (
           <motion.div
             key={v.id}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05, duration: 0.3, ease: "easeOut" }}
+            transition={{ delay: i * 0.05, duration: 0.3 }}
           >
             <GalleryCard video={v} />
           </motion.div>
@@ -151,7 +238,7 @@ function GalleryCard({ video: v }: { video: CampaignVideo }) {
     : null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/8 bg-white/3 transition-all hover:border-white/14 hover:shadow-md hover:shadow-black/20">
+    <div className="overflow-hidden rounded-xl border border-white/8 bg-white/3 transition-all hover:border-white/14">
       <div className="aspect-square bg-white/3">
         {v.video_url && v.status === "completed" ? (
           <video
@@ -219,11 +306,113 @@ function GalleryCard({ video: v }: { video: CampaignVideo }) {
             target="_blank"
             rel="noreferrer"
             download
-            className="inline-block pt-1 font-medium text-violet-400 underline-offset-2 hover:underline hover:text-violet-300"
+            className="inline-block pt-1 font-medium text-violet-400 underline-offset-2 hover:text-violet-300 hover:underline"
           >
             Download
           </a>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ModelGallery({
+  items,
+  selectedId,
+  onSelect,
+}: {
+  items: CampaignArtifactRow[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <motion.div
+      className="space-y-3 border-t border-white/8 pt-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
+      <h3 className="text-sm font-semibold text-foreground/80">
+        Previous 3D models — click to preview
+      </h3>
+      <motion.div
+        className="flex gap-3 overflow-x-auto pb-1"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.05 } },
+        }}
+        initial="hidden"
+        animate="show"
+      >
+        {items.map((row) => {
+          const selected = row.id === selectedId;
+          return (
+            <motion.button
+              key={row.id}
+              type="button"
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                show: { opacity: 1, y: 0 },
+              }}
+              onClick={() => onSelect(row.id)}
+              className={
+                "block w-32 shrink-0 overflow-hidden rounded-lg border text-left transition " +
+                (selected
+                  ? "border-violet-500/60 ring-2 ring-violet-500/30"
+                  : "border-white/10 bg-white/5 hover:border-violet-500/40")
+              }
+            >
+              <div className="flex aspect-square w-full items-center justify-center bg-black/50 text-[10px] font-semibold uppercase tracking-wide text-violet-300/80">
+                GLB
+              </div>
+              <p className="truncate px-1.5 py-1 text-[10px] text-muted-foreground">
+                {new Date(row.created_at).toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ArtifactStrip({
+  title,
+  items,
+  renderPreview,
+}: {
+  title: string;
+  items: CampaignArtifactRow[];
+  renderPreview: (row: CampaignArtifactRow) => ReactNode;
+}) {
+  return (
+    <div className="space-y-3 border-t border-white/8 pt-6">
+      <h3 className="text-sm font-semibold text-foreground/80">{title}</h3>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {items.map((row) => (
+          <a
+            key={row.id}
+            href={row.url}
+            target="_blank"
+            rel="noreferrer"
+            download
+            className="block w-32 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 transition hover:border-violet-500/40"
+          >
+            <div className="aspect-square w-full">{renderPreview(row)}</div>
+            <p className="truncate px-1.5 py-1 text-[10px] text-muted-foreground">
+              {new Date(row.created_at).toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </a>
+        ))}
       </div>
     </div>
   );
